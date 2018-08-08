@@ -1,0 +1,428 @@
+---
+title: "Marketing_Project - Team 4"
+output:
+  html_document: default
+  word_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#### dataset: Durable Goods
+#### author: Dhanshri, Mishitha, Nikhila, Sunanda
+### Importing libraries
+
+```{r}
+options(warn = -1)
+library(data.table)
+library(date)
+library(dplyr)
+library(MASS)
+library(devtools)
+library(clusplus)
+library(plotly)
+
+```
+
+### Reading file and formatting
+
+```{r}
+data_transaction = fread("DurData1_Final-2.csv")
+names(data_transaction)
+summary(data_transaction)
+data_transaction$FormattedDate <- as.Date(data_transaction$Transaction_Date, "%d%b%Y:%H:%M:%S")
+date0 = as.Date("2004-11-30")
+class(date0)
+```
+
+### Selecting columns to caluculate RFM
+
+```{r}
+data_transaction_test = data_transaction[, c(1,6, 7, 16, 39 )]
+data_transaction_test$Recency_Test = date0 - data_transaction_test$FormattedDate
+```
+
+### RFM calculation
+
+```{r}
+data_transaction_agg = data_transaction_test[ ,.(FrequencyTemp = length(unique(ORIGINAL_TICKET_NBR))), by=.(Household_ID,FormattedDate)]
+data_transaction_agg = data_transaction_agg[ ,.(Frequency = sum(FrequencyTemp)), by=Household_ID]
+nrow(data_transaction_agg)
+data_transaction_agg_test= data_transaction_test[ ,.(Recency= min(Recency_Test),Monetary = sum(EXTENDED_PRICE)), by=Household_ID]
+nrow(data_transaction_agg_test)
+data_transaction_agg<- merge(data_transaction_agg_test, data_transaction_agg, by=c("Household_ID"), all=TRUE)
+nrow(data_transaction_agg)
+```
+
+### Removing monetary values which is negative(Removing households where we don’t have purchase transactions for its returns)
+
+```{r}
+data_transaction_agg = data_transaction_agg[data_transaction_agg$Monetary>=0,]
+```
+
+### Calculating RFM scores 
+
+```{r}
+data_transaction_agg$Recency = as.numeric(data_transaction_agg$Recency)
+data_transaction_agg$Recency_Score = cut(data_transaction_agg$Recency, breaks = 5 ,labels = 5:1)
+data_transaction_agg$Frequency_Score = cut(data_transaction_agg$Frequency, breaks = 5, labels = 1:5)
+data_transaction_agg$Monetary_Score = cut(data_transaction_agg$Monetary, breaks = 5, labels = 1:5)
+summary(data_transaction_agg)
+
+#converting scores to numeric
+data_transaction_agg$Recency_Score = as.numeric(data_transaction_agg$Recency_Score)
+data_transaction_agg$Frequency_Score = as.numeric(data_transaction_agg$Frequency_Score)
+data_transaction_agg$Monetary_Score = as.numeric(data_transaction_agg$Monetary_Score)
+```
+
+### Clustering
+
+```{r}
+
+k = 3
+set.seed(100)
+cus_km_3 = kmeans(data_transaction_agg[,c(5:7)],k,nstart = 25)
+data_transaction_agg[, seg := cus_km_3$cluster]
+data_transaction_agg[, .N, seg][order(seg)]
+withinss3=sum(cus_km_3$withinss)
+rfm_df = names(data_transaction_agg[,c(5:7)] )
+data_transaction_agg[, lapply(.SD,mean), seg, .SDcols = rfm_df ][order(seg)]
+
+k = 4
+set.seed(100)
+cus_km_4 = kmeans(data_transaction_agg[,c(5:7)],k,nstart = 25)
+data_transaction_agg[, seg := cus_km_4$cluster]
+data_transaction_agg[, .N, seg][order(seg)]
+withinss4=sum(cus_km_4$withinss)
+rfm_df = names(data_transaction_agg[,c(5:7)] )
+data_transaction_agg[, lapply(.SD,mean), seg, .SDcols = rfm_df ][order(seg)]
+
+
+k = 5
+set.seed(100)
+cus_km_5 = kmeans(data_transaction_agg[,c(5:7)],k,nstart = 25)
+data_transaction_agg[, seg := cus_km_5$cluster]
+data_transaction_agg[, .N, seg][order(seg)]
+withinss5=sum(cus_km_5$withinss)
+rfm_df = names(data_transaction_agg[,c(5:7)] )
+data_transaction_agg[, lapply(.SD,mean), seg, .SDcols = rfm_df ][order(seg)]
+
+
+k = 6
+set.seed(100)
+cus_km_6 = kmeans(data_transaction_agg[,c(5:7)],k,nstart = 25)
+data_transaction_agg[, seg := cus_km_6$cluster]
+data_transaction_agg[, .N, seg][order(seg)]
+withinss6=sum(cus_km_6$withinss)
+rfm_df = names(data_transaction_agg[,c(5:7)] )
+data_transaction_agg[, lapply(.SD,mean), seg, .SDcols = rfm_df ][order(seg)]
+
+k = 7
+set.seed(100)
+cus_km_7 = kmeans(data_transaction_agg[,c(5:7)],k,nstart = 25)
+data_transaction_agg[, seg := cus_km_7$cluster]
+data_transaction_agg[, .N, seg][order(seg)]
+withinss7=sum(cus_km_7$withinss)
+rfm_df = names(data_transaction_agg[,c(5:7)] )
+data_transaction_agg[, lapply(.SD,mean), seg, .SDcols = rfm_df ][order(seg)]
+
+k = 6
+set.seed(100)
+cus_km_6 = kmeans(data_transaction_agg[,c(5:7)],k,nstart = 25)
+data_transaction_agg[, seg := cus_km_6$cluster]
+data_transaction_agg[, .N, seg][order(seg)]
+withinss6=sum(cus_km_6$withinss)
+
+#Hartigan rule
+hartigan=((withinss3/withinss4)-1)*(data_transaction_agg[,.N]-3-1)
+hartigan=((withinss4/withinss5)-1)*(data_transaction_agg[,.N]-4-1)
+hartigan=((withinss5/withinss6)-1)*(data_transaction_agg[,.N]-5-1)
+hartigan=((withinss6/withinss7)-1)*(data_transaction_agg[,.N]-6-1)
+
+```
+
+### Mean of each segments
+
+```{r}
+rfm_df = names(data_transaction_agg[,c(5:7)] )
+data_transaction_agg[, lapply(.SD,mean), seg, .SDcols = rfm_df ][order(seg)]
+
+```
+
+### Plot for RFM
+```{r}
+plot_clus_coord(cus_km_6, data_transaction_agg[,c(5:7)])
+
+```
+
+
+### aggregation for demo variables
+```{r}
+data_extrademo_agg = data_transaction[,.(Total_transactions = mean(Transaction_Total), Total_online = sum(Online_Transaction),Total_returns = sum(Quantity<0), Total_diff_categories = length(unique(Category_Description))),by=Household_ID]
+
+#Merging to get demographic from base data
+subsetdemo<- data_transaction[,c(19:38)]
+subsetdemo<- cbind(data_transaction[,1],subsetdemo)
+#Taking unique rows of subsetdemo
+demodata<-distinct(subsetdemo)
+data_demographic_agg<- merge(demodata, data_extrademo_agg, by=c("Household_ID"), all=TRUE)
+nrow(data_demographic_agg)
+summary(data_demographic_agg)
+
+#Making gender, no of children
+data_demographic_agg$Gender = ifelse(data_demographic_agg$Gender_Individual == "F", 1,0)
+data_demographic_agg$No_of_Children = rowSums(data_demographic_agg[,c(7:21)])
+names(data_demographic_agg)
+lda_data = data_demographic_agg[,c(1,2,4,22:27)]
+
+#Just taking offline transactions to calculate no ofstores visited
+offline_transaction_df = subset(data_transaction,Online_Transaction !=1)
+data_offline_stores= offline_transaction_df[,.(No_of_stores =length(unique(Transaction_Location)) ),by=Household_ID]
+nrow(data_offline_stores)
+
+```
+
+### Creating final dataframe for lda
+
+```{r}
+nrow(lda_data)
+lda_data_final = merge(x = lda_data, y = data_offline_stores, by = "Household_ID", all.x = TRUE)
+
+#final dataframe with RFM and demo variables.
+final_df = merge(x = data_transaction_agg, y = lda_data_final, by = "Household_ID", all.x = TRUE)
+nrow(final_df)
+names(final_df)
+
+```
+
+### LDA
+
+```{r}
+#finding out no of NA
+apply(is.na(final_df),2,sum)
+
+#removing NA
+nrow(final_df)
+final_df_Na_omit=final_df[complete.cases(final_df),]
+nrow(final_df_Na_omit)
+
+lda_data_names = names(final_df[,9:17, with = FALSE])
+lda_data_names
+demo_mean=final_df_Na_omit[, lapply( .SD , mean) , .SDcols = lda_data_names, seg][order(seg)]
+print(t(demo_mean))
+```
+
+### CLV
+
+```{r}
+# Calculating Mean of Recency
+Rec_mean = mean(data_transaction_agg[["Recency"]])
+```
+
+### Calculate average order value(Total Revenue/no of orders)
+
+```{r}
+data_transaction_agg$Avg_order_price = data_transaction_agg$Monetary/data_transaction_agg$Frequency
+nrow(data_transaction_agg)
+```
+
+### Calculate purchase frequency(Total no of order/No of unique customers )
+```{r}
+total_purchases = sum(data_transaction_agg$Frequency)
+purchase_freq = total_purchases / (length(data_transaction_agg$Household_ID))
+purchase_freq
+```
+
+### Calculate customer value(Avg order value * purchase frequency)
+
+```{r}
+data_transaction_agg$customer_value = data_transaction_agg$Avg_order_price * purchase_freq
+```
+
+### Calculate churn column
+
+```{r}
+data_transaction_agg$churn = ifelse(data_transaction_agg$Recency > Rec_mean, 0, 1)
+```
+
+### Calculate churn rate
+
+```{r}
+churn_rate = sum(data_transaction_agg$churn) / length(data_transaction_agg$Household_ID)
+churn_rate
+```
+### Calculate retention rate 
+
+```{r}
+retention_rate = 1 - churn_rate
+retention_rate
+```
+### Calculate avg_lifetime_span
+
+```{r}
+avg_lifetime_span = 1 / retention_rate
+avg_lifetime_span
+```
+
+### Calculate clv 
+
+```{r}
+data_transaction_agg$CLV = data_transaction_agg$customer_value * avg_lifetime_span
+
+```
+
+### Mean of each segments with CLV
+
+```{r}
+rfm_df = names(data_transaction_agg[,c(5:7,12)] )
+plot_data=data_transaction_agg[, lapply(.SD,mean), seg, .SDcols = rfm_df ][order(seg)]
+
+```
+
+### Plots for finding
+```{r}
+#Plot with CLV values
+a <- list(
+  x = list(plot_data$seg[1], plot_data$seg[4], plot_data$seg[5], plot_data$seg[6]),
+  y = list(plot_data$CLV[1], plot_data$CLV[4], plot_data$CLV[5], plot_data$CLV[6]),
+  text = list("Online Customer", "Premium Customer", "New Customer", "Valuable Customer"),
+  xref = "x",
+  yref = "y",
+  showarrow = TRUE,
+  arrowhead = 7,
+  ax = 10,
+  ay = -40)
+
+plot_ly(plot_data, x = plot_data$seg, y = plot_data$CLV, type = 'bar', 
+        marker = list(color = c('rgb(255,153,0)','rgb(204,0,0)','rgb(204,0,0)','rgb(0,153,51)','rgb(51,51,204)','rgb(255,204,0)'),
+                      line = list(color = 'rgb(0,0,102)',
+                                  width = 1.5))) %>%
+
+ layout(title = "CLV vs Segments",
+         xaxis = list(title = "Segments"),
+         yaxis = list(title = "CLV"),
+        legend = list(orientation = "h",  
+                     xanchor = "center",  
+                     x = 0.5),
+        annotations=a)
+
+
+```
+
+
+
+
+
+
+  
+  
+  
+
+  
+  
+  
+  
+  
+  
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
